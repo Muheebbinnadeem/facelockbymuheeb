@@ -17,7 +17,7 @@ Whenever authentication is requested, a dark Kali-themed **Windows Hello prompt*
 Clone the repository and run the installer:
 
 ```bash
-git clone https://github.com/muheeb/facelockbymuheeb.git
+git clone https://github.com/muheebbinnadeem/facelockbymuheeb.git
 cd facelockbymuheeb
 sudo ./install.sh
 ```
