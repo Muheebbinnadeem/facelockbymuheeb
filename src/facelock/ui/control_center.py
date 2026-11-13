@@ -391,22 +391,19 @@ class FaceLockControlCenter:
         self.footer_status.set_text(text)
 
     def _refresh_all_statuses(self) -> None:
-        # 1. Face status
-        meta = get_face_profile_metadata(self.username)
-        if not meta:
-            user_enc = Path.home() / ".local" / "share" / "facelock" / "encodings"
-            meta = get_face_profile_metadata(self.username, encodings_dir=user_enc)
+        # 1. Face status (requires neural SFace enrollment)
+        enrolled = self.face_engine.is_user_enrolled(self.username)
 
-        if meta:
-            self.face_status_badge.set_text("✔ Face Lock Ready")
+        if enrolled:
+            self.face_status_badge.set_text("✔ Neural Face Lock Ready")
             self.btn_enroll_face.set_label("Update My Face (Auto 3s Scan)")
             self.enroll_progress.set_fraction(1.0)
-            self.enroll_progress.set_text("Face Profile Active")
+            self.enroll_progress.set_text("Neural SFace Profile Active")
         else:
             self.face_status_badge.set_text("Face Not Set Up Yet")
             self.btn_enroll_face.set_label("Set Up Face Lock (Auto 3s Scan)")
             self.enroll_progress.set_fraction(0.0)
-            self.enroll_progress.set_text("Not Enrolled")
+            self.enroll_progress.set_text("Click 'Set Up Face Lock' below")
 
         # 2. Fingerprint status
         fp_st = self.fp_engine.get_status(self.username)

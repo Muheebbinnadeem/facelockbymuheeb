@@ -31,13 +31,17 @@ if [[ ${#NEEDED_PKGS[@]} -gt 0 ]] && command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" fprintd libpam-fprintd policykit-1 || true
 fi
 
-# 2. Sync latest codebase to /usr/lib/facelock
+# 2. Sync latest codebase and bundled Neural ONNX models (YuNet + SFace) to /usr/lib/facelock
 INSTALL_LIB="/usr/lib/facelock"
-rm -rf "$INSTALL_LIB/src" "$INSTALL_LIB/config" "$INSTALL_LIB/scripts"
-mkdir -p "$INSTALL_LIB"
+rm -rf "$INSTALL_LIB/src" "$INSTALL_LIB/config" "$INSTALL_LIB/scripts" "$INSTALL_LIB/models"
+mkdir -p "$INSTALL_LIB" /var/lib/facelock/models
 cp -r "$REPO_DIR/src" "$INSTALL_LIB/"
 cp -r "$REPO_DIR/config" "$INSTALL_LIB/"
 cp -r "$REPO_DIR/scripts" "$INSTALL_LIB/"
+if [[ -d "$REPO_DIR/models" ]]; then
+    cp -r "$REPO_DIR/models" "$INSTALL_LIB/"
+    cp -f "$REPO_DIR/models/"*.onnx /var/lib/facelock/models/ 2>/dev/null || true
+fi
 
 PAM_SEC_DIR="/lib/x86_64-linux-gnu/security"
 for d in "/lib/x86_64-linux-gnu/security" "/lib/aarch64-linux-gnu/security" "/lib64/security" "/lib/security"; do
@@ -89,7 +93,19 @@ chmod 0755 "/usr/local/bin/facelock-cli" "/usr/local/bin/facelock-gui"
 # 4. Initialize directories & permissions so the desktop user can enroll faces & lock folders seamlessly
 mkdir -p /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock /var/backups/facelock
 chmod 0755 /etc/facelock /var/lib/facelock
-chmod 1777 /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock
+chmod 0777 /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock
+rm -f /etc/facelock/encodings/*.tmp
+
+# Remove any legacy non-neural face encodings so user gets 100% Neural SFace accuracy
+for enc_f in /etc/facelock/encodings/*.enc "/home/${TARGET_USER:-}/.local/share/facelock/encodings/"*.enc; do
+    if [[ -f "$enc_f" ]] && grep -q "spatial-lbp-hog-dct" "$enc_f" 2>/dev/null; then
+        echo "[*] Removing legacy non-neural profile ($enc_f) for SFace Neural upgrade..."
+        rm -f "$enc_f"
+    fi
+done
+if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
+    chown -R "$TARGET_USER:$TARGET_USER" /etc/facelock/encodings 2>/dev/null || true
+fi
 
 if [[ ! -f /etc/facelock/config.json ]]; then
     cp "$REPO_DIR/config/default_config.json" /etc/facelock/config.json
