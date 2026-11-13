@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "enabled": true,
+  "default_method": "face",
+  "allowed_methods": [
+    "face",
+    "fingerprint",
+    "password"
+  ],
+  "auto_fallback_to_password": true,
+  "camera": {
+    "device_index": 0,
+    "width": 640,
+    "height": 480,
+    "fps": 30,
+    "warmup_frames": 4
+  },
+  "face_auth": {
+    "match_threshold": 0.76,
+    "neural_cosine_threshold": 0.42,
+    "liveness_mode": "balanced",
+    "require_liveness": true,
+    "scan_timeout_seconds": 9,
+    "min_face_size_px": 80,
+    "enrollment_samples": 5
+  },
+  "security": {
+    "max_biometric_attempts": 4,
+    "lockout_duration_seconds": 60,
+    "prompt_timeout_seconds": 35,
+    "skip_on_ssh": true,
+    "capture_intruder_on_spoof": false,
+    "auto_lock_vaults_on_screensaver": true
+  },
+  "pam_services": {
+    "sudo": true,
+    "polkit": true,
+    "lightdm": true,
+    "gdm": false,
+    "screensaver": true,
+    "light_locker": true,
+    "su": false
+  },
+  "ui": {
+    "theme": "kali-dark",
+    "auto_start_scan": true,
+    "close_delay_ms": 420,
+    "show_confidence_score": true
+  }
+}

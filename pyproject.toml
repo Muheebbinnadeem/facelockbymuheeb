@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=65.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "facelock-kali"
+version = "1.2.0"
+description = "Windows Hello-style Face Lock, Fingerprint, and Password PAM authentication suite with AES-256-GCM folder vaults for Kali Linux"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+  {name = "Muheeb"}
+]
+dependencies = [
+  "numpy>=1.22",
+  "cryptography>=38.0",
+]
+
+[project.scripts]
+facelock-cli = "facelock.cli.main:main"
+facelock-gui = "facelock.ui.control_center:launch_control_center"
+
+[tool.setuptools.packages.find]
+where = ["src"]
