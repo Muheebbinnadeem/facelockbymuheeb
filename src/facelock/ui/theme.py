@@ -200,6 +200,7 @@ def apply_kali_theme() -> None:
     """Register the Kali Dark / Windows Hello CSS stylesheet globally on the default screen."""
     import gi
 
+    gi.require_version("Gdk", "3.0")
     gi.require_version("Gtk", "3.0")
     from gi.repository import Gdk, Gtk
 
