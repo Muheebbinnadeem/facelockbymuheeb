@@ -24,11 +24,12 @@ python3 -c "import cv2" 2>/dev/null || NEEDED_PKGS+=("python3-opencv")
 python3 -c "import cryptography" 2>/dev/null || NEEDED_PKGS+=("python3-cryptography")
 python3 -c "import dbus" 2>/dev/null || NEEDED_PKGS+=("python3-dbus")
 [[ -f /usr/include/security/pam_modules.h ]] || NEEDED_PKGS+=("libpam0g-dev" "gcc")
+command -v fprintd-enroll >/dev/null 2>&1 || NEEDED_PKGS+=("fprintd" "libpam-fprintd" "libfprint-2-2")
 
 if [[ ${#NEEDED_PKGS[@]} -gt 0 ]] && command -v apt-get >/dev/null 2>&1; then
     echo "[*] Installing required system dependencies: ${NEEDED_PKGS[*]}"
-    apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" fprintd libpam-fprintd policykit-1 || true
+    apt-get update -qq || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" policykit-1 || true
 fi
 
 # 2. Sync latest codebase and bundled Neural ONNX models (YuNet + SFace) to /usr/lib/facelock
@@ -127,7 +128,13 @@ if [[ -d /usr/share/applications ]]; then
 fi
 
 if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
-    usermod -aG video "$TARGET_USER" 2>/dev/null || true
+    usermod -aG video,input,plugdev "$TARGET_USER" 2>/dev/null || true
+    chmod a+r /dev/input/event* 2>/dev/null || true
+    cat > /etc/udev/rules.d/99-facelock-biometric.rules << 'EOF'
+KERNEL=="event*", SUBSYSTEM=="input", MODE="0664", GROUP="input"
+SUBSYSTEM=="hidraw", MODE="0664", GROUP="plugdev"
+EOF
+    udevadm control --reload-rules 2>/dev/null || true
     bash "$REPO_DIR/scripts/thunar-integration.sh" || true
 fi
 

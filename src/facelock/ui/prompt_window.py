@@ -213,11 +213,18 @@ class WindowsHelloPromptWindow:
 
         # --- View 2: Fingerprint ---
         fp_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.fp_event_box = Gtk.EventBox()
+        self.fp_event_box.set_halign(Gtk.Align.CENTER)
         self.fp_area = Gtk.DrawingArea()
         self.fp_area.set_size_request(210, 210)
         self.fp_area.set_halign(Gtk.Align.CENTER)
         self.fp_area.connect("draw", self._on_draw_fingerprint)
-        fp_page.pack_start(self.fp_area, False, False, 0)
+        self.fp_event_box.add(self.fp_area)
+        self.fp_event_box.connect(
+            "button-press-event",
+            lambda *_: self.fp_engine.notify_ui_sensor_touch(),
+        )
+        fp_page.pack_start(self.fp_event_box, False, False, 0)
 
         self.fp_retry_btn = Gtk.Button(label="Retry Fingerprint Scan")
         self.fp_retry_btn.get_style_context().add_class("secondary-btn")
