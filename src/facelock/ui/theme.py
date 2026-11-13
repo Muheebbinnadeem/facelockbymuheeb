@@ -230,9 +230,11 @@ def draw_circular_camera_hud(
     Render a Windows Hello-style circular biometric camera viewfinder with glowing
     reticle arcs, sweeping laser scan line, and face detection bounding overlay.
     """
+    if width < 60 or height < 60:
+        return
     cx = width / 2.0
     cy = height / 2.0
-    radius = min(width, height) / 2.0 - 14.0
+    radius = max(20.0, min(width, height) / 2.0 - 14.0)
 
     # Background clear
     cr.set_source_rgb(0.067, 0.094, 0.153)
@@ -341,6 +343,8 @@ def draw_fingerprint_radar(
     """
     Render an animated fingerprint biometric scanner graphic with concentric ridges.
     """
+    if width < 60 or height < 60:
+        return
     cx = width / 2.0
     cy = height / 2.0
     cr.set_source_rgb(0.067, 0.094, 0.153)

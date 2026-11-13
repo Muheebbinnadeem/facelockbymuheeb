@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# FaceLock (Kali Hello) Automatic One-Command Installer for Kali Linux / Debian
+# FaceLock (Kali Hello) Automatic One-Command Installer & Launcher for Kali Linux
 # Author: Muheeb
 
 set -euo pipefail
 
 if [[ $EUID -ne 0 ]]; then
-    echo "[!] Please run the installer with sudo: sudo ./install.sh"
+    echo "[!] Run this single command to install and open Kali Hello:"
+    echo "    sudo ./install.sh"
     exit 1
 fi
 
@@ -16,7 +17,7 @@ echo "=================================================================="
 echo "  FaceLock by Muheeb — Windows Hello Biometric Suite for Kali"
 echo "=================================================================="
 
-# 1. Check & install missing apt packages if apt-get is available
+# 1. Check & install missing apt packages if needed
 NEEDED_PKGS=()
 python3 -c "import gi" 2>/dev/null || NEEDED_PKGS+=("python3-gi" "python3-gi-cairo" "gir1.2-gtk-3.0")
 python3 -c "import cv2" 2>/dev/null || NEEDED_PKGS+=("python3-opencv")
@@ -30,8 +31,9 @@ if [[ ${#NEEDED_PKGS[@]} -gt 0 ]] && command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" fprintd libpam-fprintd policykit-1 || true
 fi
 
-# 2. Compile native C PAM module (pam_facelock.so)
+# 2. Sync latest codebase to /usr/lib/facelock
 INSTALL_LIB="/usr/lib/facelock"
+rm -rf "$INSTALL_LIB/src" "$INSTALL_LIB/config" "$INSTALL_LIB/scripts"
 mkdir -p "$INSTALL_LIB"
 cp -r "$REPO_DIR/src" "$INSTALL_LIB/"
 cp -r "$REPO_DIR/config" "$INSTALL_LIB/"
@@ -53,11 +55,9 @@ if command -v gcc >/dev/null 2>&1 && [[ -f /usr/include/security/pam_modules.h ]
         -o "$PAM_SEC_DIR/pam_facelock.so" -lpam
     chown root:root "$PAM_SEC_DIR/pam_facelock.so"
     chmod 0644 "$PAM_SEC_DIR/pam_facelock.so"
-else
-    echo "[!] libpam0g-dev or gcc not present; using pam_exec.so bridge automatically."
 fi
 
-# 3. Create root-owned system wrappers
+# 3. Create global CLI and GUI executables
 cat > "$INSTALL_LIB/facelock-pam-helper" << 'EOF'
 #!/usr/bin/env bash
 export PYTHONPATH="/usr/lib/facelock/src:${PYTHONPATH:-}"
@@ -86,21 +86,20 @@ chown -R root:root "$INSTALL_LIB"
 chmod 0755 "$INSTALL_LIB/facelock-pam-helper" "$INSTALL_LIB/facelock-privileged"
 chmod 0755 "/usr/local/bin/facelock-cli" "/usr/local/bin/facelock-gui"
 
-# 4. Initialize /etc/facelock, master key, and default config
+# 4. Initialize directories & permissions so the desktop user can enroll faces & lock folders seamlessly
 mkdir -p /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock /var/backups/facelock
-chmod 0755 /etc/facelock /etc/facelock/encodings /var/lib/facelock /var/log/facelock
-chmod 0700 /var/lib/facelock/vaults
-chmod 1777 /var/lib/facelock/state
+chmod 0755 /etc/facelock /var/lib/facelock
+chmod 1777 /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock
 
 if [[ ! -f /etc/facelock/config.json ]]; then
     cp "$REPO_DIR/config/default_config.json" /etc/facelock/config.json
-    chmod 0644 /etc/facelock/config.json
 fi
+chmod 0666 /etc/facelock/config.json
 
-# Generate AES-256-GCM master key via privileged helper
 PYTHONPATH="$INSTALL_LIB/src" /usr/bin/python3 -c "from facelock.core.crypto import ensure_master_key; ensure_master_key()"
+chmod 0644 /etc/facelock/master.key
 
-# 5. Install Polkit policy, Desktop launcher, and File Manager right-click action
+# 5. Install Polkit policy, Desktop shortcut & Thunar Right-Click integration
 if [[ -d /usr/share/polkit-1/actions ]]; then
     cp "$REPO_DIR/config/com.muheeb.facelock.policy" /usr/share/polkit-1/actions/com.muheeb.facelock.policy
     chmod 0644 /usr/share/polkit-1/actions/com.muheeb.facelock.policy
@@ -116,14 +115,26 @@ if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
     bash "$REPO_DIR/scripts/thunar-integration.sh" || true
 fi
 
-# 6. Auto-enable default PAM hooks safely (with automatic backup)
-echo "[*] Backing up /etc/pam.d/* and activating default Kali Hello PAM hooks..."
+# 6. Auto-enable PAM hooks (sudo, LightDM, Polkit, Lock Screen) with backup
+echo "[*] Auto-configuring PAM hooks (sudo, Login, Lock Screen, Polkit)..."
 /usr/local/bin/facelock-cli pam enable-defaults || true
 
 echo ""
-echo "[+] Installation Complete!"
-echo "    - Launch Frontend Control Center : facelock-gui"
-echo "    - Test Windows Hello Prompt      : facelock-cli prompt"
-echo "    - Check Status                   : facelock-cli status"
-echo "    - Emergency PAM Restore          : sudo facelock-cli pam restore"
+echo "[+] Everything is installed and configured automatically!"
 echo "=================================================================="
+
+# 7. Automatically open the Kali Hello GUI window for the user right away!
+if [[ -n "${DISPLAY:-}" ]] && [[ "${FACELOCK_NO_AUTO_GUI:-0}" != "1" ]]; then
+    echo "[*] Opening Kali Hello Sign-in Options window..."
+    if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
+        TargetUID="$(id -u "$TARGET_USER")"
+        sudo -u "$TARGET_USER" \
+            DISPLAY="${DISPLAY}" \
+            XAUTHORITY="${XAUTHORITY:-/home/$TARGET_USER/.Xauthority}" \
+            XDG_RUNTIME_DIR="/run/user/${TargetUID}" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TargetUID}/bus" \
+            /usr/local/bin/facelock-gui >/dev/null 2>&1 &
+    else
+        /usr/local/bin/facelock-gui >/dev/null 2>&1 &
+    fi
+fi

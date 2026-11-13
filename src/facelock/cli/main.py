@@ -123,14 +123,19 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--user", default=None, help="Target username (auto-detected if omitted)")
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("gui", help="Launch the FaceLock Frontend Control Center GUI")
-    sub.add_parser("status", help="Show biometric hardware, enrollment, and PAM hook status")
+    p_gui = sub.add_parser("gui", help="Launch the FaceLock Frontend Control Center GUI")
+    p_gui.add_argument("--user", default=None, help="Target username")
+
+    p_status = sub.add_parser("status", help="Show biometric hardware, enrollment, and PAM hook status")
+    p_status.add_argument("--user", default=None, help="Target username")
 
     p_prompt = sub.add_parser("prompt", help="Launch the Windows Hello 3-method authentication prompt")
+    p_prompt.add_argument("--user", default=None, help="Target username")
     p_prompt.add_argument("--service", default="sudo", help="Service name displayed in header")
     p_prompt.add_argument("--method", choices=["face", "fingerprint", "password"], default=None)
 
     p_folder = sub.add_parser("folder", help="Lock or unlock AES-256-GCM protected folder vaults")
+    p_folder.add_argument("--user", default=None, help="Target username")
     p_folder.add_argument("folder_action", choices=["lock", "unlock", "toggle", "list", "lock-all"])
     p_folder.add_argument("path", nargs="?", default=None, help="Folder path to lock or unlock")
     p_folder.add_argument("--open", action="store_true", help="Open folder in file manager after unlock")

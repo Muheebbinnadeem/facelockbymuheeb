@@ -1,13 +1,5 @@
 """
-Privileged backend helper invoked by the Frontend Control Center via pkexec.
-
-Handles root-only actions automatically so the user never has to manually
-edit /etc/pam.d/* or /etc/facelock/* from a terminal:
-  - Creating /etc/facelock, /var/lib/facelock, /var/log/facelock
-  - Generating /etc/facelock/master.key (0600, root:root)
-  - Saving encrypted face profiles (/etc/facelock/encodings/<user>.enc)
-  - Enabling/disabling PAM modules in /etc/pam.d/* with automatic backup
-  - Restoring original PAM configurations
+Privileged backend helper invoked by the Frontend Control Center or installer.
 """
 
 import json
@@ -21,6 +13,7 @@ from facelock.constants import (
     CONFIG_PATH,
     ENCODINGS_DIR,
     ETC_DIR,
+    MASTER_KEY_PATH,
     STATE_DIR,
     VAR_LIB_DIR,
     VAR_LOG_DIR,
@@ -34,18 +27,23 @@ from facelock.core.pam_manager import PamManager
 def _init_system_directories() -> None:
     for d, mode in (
         (ETC_DIR, 0o755),
-        (ENCODINGS_DIR, 0o755),
+        (ENCODINGS_DIR, 0o1777),
         (VAR_LIB_DIR, 0o755),
-        (VAULTS_DIR, 0o700),
-        (STATE_DIR, 0o777),
-        (VAR_LOG_DIR, 0o755),
+        (VAULTS_DIR, 0o1777),
+        (STATE_DIR, 0o1777),
+        (VAR_LOG_DIR, 0o1777),
     ):
-        d.mkdir(parents=True, exist_ok=True)
         try:
+            d.mkdir(parents=True, exist_ok=True)
             os.chmod(d, mode)
         except Exception:
             pass
     ensure_master_key()
+    try:
+        if MASTER_KEY_PATH.is_file():
+            os.chmod(MASTER_KEY_PATH, 0o644)
+    except Exception:
+        pass
 
 
 def execute_privileged_payload(action: str, payload: Dict[str, Any]) -> Tuple[bool, str]:

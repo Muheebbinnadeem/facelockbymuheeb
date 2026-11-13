@@ -35,28 +35,47 @@ def _read_machine_id() -> bytes:
     return b"kali-linux-default-machine-binding"
 
 
+def _user_fallback_key_path() -> Path:
+    p = Path.home() / ".local" / "share" / "facelock" / "master.key"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def ensure_master_key(key_path: Optional[Path] = None) -> bytes:
     """
-    Load or generate the 32-byte root master key.
+    Load or generate the 32-byte master key.
+    Gracefully falls back if /etc/facelock/master.key is not readable by a non-root user.
     """
     path = key_path or MASTER_KEY_PATH
-    if path.is_file():
-        raw = path.read_bytes().strip()
-        if len(raw) == 64:
-            return bytes.fromhex(raw.decode("ascii"))
-        if len(raw) >= 32:
-            return raw[:32]
+    try:
+        if path.is_file():
+            raw = path.read_bytes().strip()
+            if len(raw) == 64:
+                return bytes.fromhex(raw.decode("ascii"))
+            if len(raw) >= 32:
+                return raw[:32]
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    secret = secrets.token_bytes(32)
-    tmp = path.with_suffix(".tmp")
-    # Open with 0600 permissions before writing secret material
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(secret.hex().encode("ascii"))
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
-    return secret
+        path.parent.mkdir(parents=True, exist_ok=True)
+        secret = secrets.token_bytes(32)
+        tmp = path.with_suffix(".tmp")
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(secret.hex().encode("ascii"))
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+        return secret
+    except PermissionError:
+        fb_path = _user_fallback_key_path()
+        if fb_path.is_file():
+            raw = fb_path.read_bytes().strip()
+            if len(raw) == 64:
+                return bytes.fromhex(raw.decode("ascii"))
+            if len(raw) >= 32:
+                return raw[:32]
+        secret = secrets.token_bytes(32)
+        fb_path.write_bytes(secret.hex().encode("ascii"))
+        os.chmod(fb_path, 0o600)
+        return secret
 
 
 def derive_subkey(purpose: str, context: str = "", master_key: Optional[bytes] = None) -> bytes:
@@ -182,22 +201,31 @@ def load_encrypted_face_profile(
 ) -> Optional[Dict[str, Any]]:
     """
     Load and decrypt a user's face profile, returning None if not enrolled.
+    Checks both /etc/facelock/encodings and user-local fallback encodings.
     """
     safe_user = "".join(c for c in username if c.isalnum() or c in ("_", "-", "."))
-    target_dir = encodings_dir or ENCODINGS_DIR
-    in_file = target_dir / f"{safe_user}.enc"
-    if not in_file.is_file():
-        return None
-
-    with open(in_file, "r", encoding="utf-8") as fh:
-        envelope = json.load(fh)
-
-    return decrypt_json_payload(
-        envelope,
-        purpose="face-profile",
-        context=safe_user,
-        master_key=master_key,
-    )
+    dirs = [encodings_dir] if encodings_dir else [
+        ENCODINGS_DIR,
+        Path.home() / ".local" / "share" / "facelock" / "encodings",
+    ]
+    for d in dirs:
+        if d is None:
+            continue
+        in_file = d / f"{safe_user}.enc"
+        if not in_file.is_file():
+            continue
+        try:
+            with open(in_file, "r", encoding="utf-8") as fh:
+                envelope = json.load(fh)
+            return decrypt_json_payload(
+                envelope,
+                purpose="face-profile",
+                context=safe_user,
+                master_key=master_key,
+            )
+        except Exception:
+            continue
+    return None
 
 
 def get_face_profile_metadata(
