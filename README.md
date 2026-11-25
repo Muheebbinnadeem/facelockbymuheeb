@@ -117,5 +117,5 @@ If **FaceLock (Windows Hello for Kali Linux)** helps your workflow and you want 
 ---
 
 <div align="center">
-  <b>Designed &amp; Engineered with ❤️ by <a href="https://muheebbinnadeem.cv">Muheeb Bin Nadeem</a> (<code>Made by Muheeb</code>)</b>
+  <b>Designed &amp; Engineered by <a href="https://muheebbinnadeem.cv">Muheeb Bin Nadeem</a> (<code>Made by Muheeb</code>)</b>
 </div>
