@@ -1,128 +1,121 @@
-# FaceLock for Kali Linux (`Kali Hello`)
+<div align="center">
 
-Windows Hello-style biometric and multi-factor authentication for **Kali Linux** (and Debian-based distributions).
+# 🔐 FaceLock — Windows Hello Biometric & Folder Lock Suite for Kali Linux
 
-FaceLock hooks directly into Linux PAM (`pam_facelock.so`) so you can authenticate across **`sudo`**, **Desktop Login (`LightDM` / `GDM`)**, **Lock Screen (`xfce4-screensaver` / `light-locker`)**, **GUI Admin Prompts (`Polkit` / `pkexec`)**, and **Encrypted Folder Vaults** using:
+### Windows Hello Face Recognition • Fingerprint (`fprintd`) • System Password Switcher • Zero Startup Keyring Prompt • AES-256-GCM Encrypted Folder Vaults
 
-1. **Face Lock** (Bundled `YuNet` 5-landmark face detector + `SFace` 128-D deep neural recognition + 3-frame liveness check)
-2. **Fingerprint** (`fprintd` hardware sensor integration, auto-detected if present)
-3. **System Password** (Your original Kali Linux account password via `libpam` / `unix_chkpwd` — no extra password setup required)
+**Crafted & Engineered by [Muheeb Bin Nadeem](https://muheebbinnadeem.cv) (`Made by Muheeb`)**
 
-Whenever authentication is requested, a dark Kali-themed **Windows Hello prompt** appears on screen. You can switch between **Face Lock**, **Fingerprint**, and **Password** at any time by clicking either the **3 method icons** or the **"Sign-in options" dropdown** inside the popup.
+[![Platform: Kali Linux](https://img.shields.io/badge/OS-Kali%20Linux%20Rolling-0078D4?style=for-the-badge&logo=kalilinux&logoColor=white)](https://www.kali.org/)
+[![UI: Windows Hello Style](https://img.shields.io/badge/UI-Windows%20Hello%20Fluent-0284C7?style=for-the-badge&logo=windows11&logoColor=white)](#windows-hello-sign-in-experience)
+[![Encryption: AES-256-GCM](https://img.shields.io/badge/Security-AES--256--GCM%20%2B%20PAM-059669?style=for-the-badge&logo=letsencrypt&logoColor=white)](#security--anti-spoofing)
+[![Portfolio: Muheebbinnadeem.cv](https://img.shields.io/badge/Portfolio-Muheebbinnadeem.cv-047857?style=for-the-badge&logo=googlechrome&logoColor=white)](https://muheebbinnadeem.cv)
+[![WhatsApp: 0307 4171882](https://img.shields.io/badge/WhatsApp-0307%204171882-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/923074171882)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1E293B?style=for-the-badge)](LICENSE)
+
+</div>
 
 ---
 
-## Install & Setup (1 Command Only)
+## 🌟 Overview — True Windows Hello Experience on Kali Linux
 
-Clone the repository and run the installer:
+Want **Windows Hello Face Unlock, Fingerprint Unlock, and Folder Lock** on **Kali Linux** (`sudo`, Login Screen, Lock Screen, Polkit Admin Prompts, and Private Folders) without editing PAM config files by hand?
+
+**FaceLock (`Kali Hello`)** integrates a compiled native C PAM module (`pam_facelock.so`) with a clean **Windows 11 Sign-in Options** desktop UI. Whenever Kali asks for authentication, the Windows Hello popup appears with **3 instant sign-in methods**:
+
+1. **Face Lock** — Deep neural `YuNet` 5-landmark face detection + `SFace` 128-D identity verification + anti-spoofing liveness check.
+2. **Fingerprint** — Hardware fingerprint reader support via `fprintd` / `libfprint-2` (auto-detected on USB/SPI biometric laptops).
+3. **System Password** — Uses your **original Kali Linux password** directly via `libpam` / `unix_chkpwd` (zero duplicate passwords).
+
+Switch between all 3 methods anytime using either the **3 clickable icon buttons** or the **Method Dropdown** inside the popup.
+
+---
+
+## ✨ Full Feature List
+
+- **🪟 Clean Windows Hello UI & Sign-in Options (`facelock-gui`)**
+  - Single-screen **Windows 11 Settings → Sign-in options** dashboard — zero clutter, zero manual config editing.
+  - Auto-detects your active Kali username, webcam, fingerprint reader, and keyring status automatically.
+- **🔓 Zero Startup Keyring Lock Prompt (Auto-Unlock Login Keyring & KWallet)**
+  - Biometric logins (`Face` / `Fingerprint`) skip typing a password, which normally triggers *"Enter password to unlock your login keyring"* on startup.
+  - FaceLock includes built-in **1-Click Keyring Auto-Unlock** (`facelock-gui` → **Fix Keyring Prompt** or `facelock-cli keyring fix`) that converts your GNOME Login Keyring to passwordless auto-unlock (keeping all saved browser/Wi-Fi passwords intact) and silences KWallet startup nags.
+- **⚡ Works Everywhere Automatically (Native C PAM Module)**
+  - `sudo` in terminal
+  - **LightDM / GDM** Desktop Login Screen
+  - **XFCE Screensaver / Light Locker** Lock Screen
+  - **Polkit (`pkexec`)** Graphical Admin Prompts
+  - **Protected Folder Vaults** (GUI, Thunar Right-Click, or double-click launcher)
+- **📁 AES-256-GCM Encrypted Folder Lock Vaults**
+  - Lock any folder in 1 click (or right-click in **Thunar / Nautilus** → **Lock / Unlock with Kali Hello**).
+  - Contents are encrypted with chunked `AES-256-GCM` + `HKDF-SHA256` and only decrypt after passing the Windows Hello prompt.
+- **🛡️ Anti-Spoofing & Zero-Lockout Security**
+  - Raw camera photos are never saved — only `AES-256-GCM` + `HMAC-SHA256` encrypted 128-D embeddings are stored in `/etc/facelock/encodings/`.
+  - **3-Frame Neural Confirmation + Liveness Check** rejects static photos, phone screens, hands, and walls.
+  - **4-Attempt Biometric Lockout**: Temporarily locks biometrics for 60s after repeated failures and falls back to your system password.
+  - **Non-Locking PAM Rules**: Pressing `Esc` or clicking **Cancel / Terminal Prompt** hands auth cleanly back to standard Linux `pam_unix.so`.
+
+---
+
+## 🚀 1-Command Installation (Kali Linux / Debian)
+
+Open your Kali Linux terminal and run:
 
 ```bash
-git clone https://github.com/muheebbinnadeem/facelockbymuheeb.git
-cd facelockbymuheeb
-sudo ./install.sh
+git clone https://github.com/Muheebbinnadeem/facelockbymuheeb.git && cd facelockbymuheeb && sudo ./install.sh
 ```
 
-### What `sudo ./install.sh` Does Automatically:
-1. Installs any missing dependencies (`python3-gi`, `gir1.2-gtk-3.0`, `python3-opencv`, `python3-cryptography`, `libpam0g-dev`, `fprintd`).
-2. Compiles the native C PAM module (`src/pam/pam_facelock.c` -> `/lib/x86_64-linux-gnu/security/pam_facelock.so`).
-3. Installs the bundled **YuNet + SFace Neural ONNX Models** (`models/*.onnx`), sets up `/etc/facelock`, and generates the AES-256-GCM master key.
-4. Backs up `/etc/pam.d/*` and activates Kali Hello across `sudo`, `LightDM`, `Lock Screen`, and `Polkit` automatically.
-5. Adds the **"Lock / Unlock with Kali Hello"** right-click action to Kali's **Thunar** (and Nautilus) file manager.
-6. **Automatically opens the Kali Hello Sign-in Options window** on your screen as soon as installation finishes.
+**What `sudo ./install.sh` does automatically:**
+1. Installs required dependencies (`python3-gi`, `gir1.2-gtk-3.0`, `python3-opencv`, `python3-cryptography`, `fprintd`, `libpam-fprintd`, `libpam0g-dev`, `acl`).
+2. Compiles `src/pam/pam_facelock.c` → `/lib/x86_64-linux-gnu/security/pam_facelock.so`.
+3. Installs bundled **YuNet + SFace Neural ONNX Models** (`models/*.onnx`) and sets scoped ACL permissions on `/etc/facelock`.
+4. Backs up `/etc/pam.d/*` to `/var/backups/facelock/pam.d/` and enables PAM hooks across `sudo`, `LightDM`, `Lock Screen`, and `Polkit`.
+5. Pre-configures passwordless keyring defaults & disables KWallet startup prompts on fresh systems.
+6. **Automatically opens the Windows Hello Sign-in Options window** so you can click **"Set up Face Lock"** in 3 seconds.
 
----
+### 🔄 How to Update on Your Laptop or Friend's Laptop
 
-## Using the Kali Hello Window
-
-Once the window opens (or anytime via `facelock-gui` / Application Menu -> **FaceLock (Kali Hello)**):
-
-1. **Face Lock**:
-   - Click **"Set Up Face Lock (Auto 3s Scan)"** and look at the camera for 3 seconds.
-   - Your 128-D neural face profile is encrypted with AES-256-GCM and activated immediately.
-2. **Fingerprint**:
-   - If your laptop has a fingerprint sensor, click **"Set Up Fingerprint"** to enroll your finger.
-   - If no fingerprint sensor is connected, FaceLock automatically uses Face Lock + System Password.
-3. **System Password**:
-   - Already active out of the box using your auto-detected Linux username and original Kali password.
-4. **Folder Lock (AES-256-GCM Encrypted Folders)**:
-   - Click **"+ Select & Lock a Folder"** to encrypt and lock any folder (or right-click any folder in Thunar and select **"Lock / Unlock with Kali Hello"**).
-   - Click **"Unlock Selected Folder"** (or double-click the launcher inside the locked folder) — the Windows Hello popup will verify your Face, Fingerprint, or Password and immediately unlock and open the folder.
-5. **Test Popup Live**:
-   - Click **"★ Test Windows Hello Popup Now"** to test the live popup and method switcher (icons + dropdown).
-
----
-
-## Security Architecture
-
-- **Bundled Deep Neural Face Engine (`YuNet` + `SFace` 128-D)**:
-  - `YuNet` validates all 5 anatomical facial landmarks (right eye, left eye, nose tip, right/left mouth corners) with confidence `>= 0.85` — walls, hands, or covered faces are rejected immediately.
-  - `SFace` extracts 128-D neural identity embeddings and requires **3 consecutive matching frames** (`cosine >= 0.50`, `L2 <= 1.01`) plus temporal liveness verification to prevent photo/screen spoofing and false accepts.
-- **AES-256-GCM Encrypted Storage**:
-  - Raw camera photos are never stored on disk. Only encrypted mathematical embeddings signed with HMAC-SHA256 are stored in `/etc/facelock/encodings/<user>.enc`.
-  - Locked folders are packed and stream-encrypted with chunked AES-256-GCM (`FLVAULT1`).
-- **Biometric Rate Limiting**:
-  - After 4 consecutive failed biometric attempts, Face Lock and Fingerprint lock out for 60 seconds and require your original system password.
-- **Zero-Lockout PAM Design**:
-  - Uses non-locking PAM control flags. Pressing `Esc` or clicking **"Cancel / Terminal Prompt"** in the popup cleanly hands authentication back to standard terminal `pam_unix.so`.
-  - Remote SSH sessions automatically bypass local camera/fingerprint checks.
-
----
-
-## Helpful Commands
+Already cloned earlier? Pull the latest update and re-run the installer in one line:
 
 ```bash
-# Open the Kali Hello GUI window anytime
-facelock-gui
-
-# Test the Windows Hello Sign-in Popup from terminal
-facelock-cli prompt
-
-# Check hardware, camera, neural engine, and PAM status
-facelock-cli status
-
-# Lock or unlock a folder from terminal
-facelock-cli folder lock ~/Documents/SecretFolder
-facelock-cli folder unlock ~/Documents/SecretFolder --open
-
-# Emergency restore default PAM configuration
-sudo facelock-cli pam restore
-
-# Full uninstall
-sudo ./uninstall.sh
+cd facelockbymuheeb && git pull && sudo ./install.sh
 ```
 
 ---
 
-## Repository Structure
+## 🖥️ Quick Usage Guide
 
-```text
-facelockbymuheeb/
-├── Makefile                        # Compiles pam_facelock.so, runs tests, builds .deb
-├── install.sh                      # 1-command automatic installer & GUI launcher
-├── uninstall.sh                    # Clean uninstaller & PAM backup restorer
-├── models/                         # Bundled YuNet & SFace neural ONNX models
-│   ├── face_detection_yunet_2023mar.onnx
-│   └── face_recognition_sface_2021dec_int8.onnx
-├── config/
-│   ├── default_config.json         # Default biometric, PAM, and security policy
-│   ├── com.muheeb.facelock.policy  # PolicyKit rule for frontend GUI
-│   └── facelock-control.desktop    # Desktop entry for Kali application menu
-├── src/
-│   ├── pam/
-│   │   └── pam_facelock.c          # Native C PAM module (pam_facelock.so)
-│   └── facelock/
-│       ├── config.py               # Config manager & automatic username detection
-│       ├── constants.py            # System paths and service definitions
-│       ├── core/                   # Crypto, Neural Face, Fingerprint, Password, PAM, Vaults
-│       ├── ui/                     # Windows Hello Prompt & Unified Control Center (GTK3)
-│       └── cli/                    # CLI & PAM graphical session helper
-├── scripts/
-│   ├── build-deb.sh                # Builds facelock-kali_<ver>_amd64.deb
-│   ├── screensaver-autolock.py     # Auto-relocks folder vaults on screen lock
-│   └── thunar-integration.sh       # Right-click folder lock action for Thunar & Nautilus
-└── tests/                          # Automated unit & integration tests
-```
+| Action | How to Do It |
+|---|---|
+| **Open Sign-in Options GUI** | `facelock-gui` *(or Kali Menu → Settings → FaceLock)* |
+| **Enroll Face Lock** | Click **Set up Face Lock** and look at the camera for ~3 seconds |
+| **Enroll Fingerprint** | Click **Set up** under Fingerprint *(requires `fprintd`-supported sensor)* |
+| **Fix Startup Keyring Prompt** | Click **Fix Keyring Prompt** in GUI *(or run `facelock-cli keyring fix`)* |
+| **Lock / Unlock a Folder** | Click **+ Lock Folder** in GUI, or right-click any folder in **Thunar** |
+| **Test Windows Hello Popup** | Click **★ Test Windows Hello Popup** or run `facelock-cli prompt` |
+| **Check System & Hardware Status** | `facelock-cli status` |
+| **Restore Default PAM / Uninstall** | `sudo facelock-cli pam restore` or `sudo ./uninstall.sh` |
 
-## License
+---
 
-MIT License — Created by **Muheeb**.
+## 💖 Support & Sponsor This Project
+
+If **FaceLock (Windows Hello for Kali Linux)** helps your workflow and you want to support ongoing open-source development or hire **Muheeb** for custom cybersecurity, Linux, or AI projects, feel free to connect or sponsor!
+
+| Channel | Details |
+|---|---|
+| 🏦 **Bank Transfer** | **Askari Bank Limited** — Account No: **`02110200000209`** |
+| 🌐 **Portfolio / Website** | **[Muheebbinnadeem.cv](https://muheebbinnadeem.cv)** |
+| 💬 **WhatsApp** | **[0307 4171882](https://wa.me/923074171882)** (`+92 307 4171882`) |
+| 🐙 **GitHub** | **[github.com/Muheebbinnadeem](https://github.com/Muheebbinnadeem)** |
+
+---
+
+## 🏷️ SEO Keywords & Topics
+
+`windows-hello-linux` • `kali-linux-face-unlock` • `face-unlock-linux` • `biometric-authentication-linux` • `fingerprint-login-kali-linux` • `pam-face-authentication` • `linux-folder-lock` • `aes-256-gcm-vault` • `fprintd-gui` • `gnome-keyring-biometric-fix` • `made-by-muheeb`
+
+---
+
+<div align="center">
+  <b>Designed &amp; Engineered with ❤️ by <a href="https://muheebbinnadeem.cv">Muheeb Bin Nadeem</a> (<code>Made by Muheeb</code>)</b>
+</div>

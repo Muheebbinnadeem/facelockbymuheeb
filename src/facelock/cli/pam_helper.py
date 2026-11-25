@@ -55,10 +55,19 @@ def discover_graphical_session_env(target_user: str) -> Dict[str, str]:
                 if gdm_auth.is_file():
                     env_updates.setdefault("XAUTHORITY", str(gdm_auth))
 
-    # 2. Check home .Xauthority
+    # 2. Check home .Xauthority and LightDM greeter Xauthority
     xauth = home / ".Xauthority"
     if xauth.is_file():
         env_updates.setdefault("XAUTHORITY", str(xauth))
+    else:
+        for dm_auth in (
+            Path("/var/run/lightdm/root/:0"),
+            Path("/run/lightdm/root/:0"),
+            Path("/var/run/lightdm/lightdm/.Xauthority"),
+        ):
+            if dm_auth.is_file():
+                env_updates.setdefault("XAUTHORITY", str(dm_auth))
+                break
 
     # 3. Check /tmp/.X11-unix/X* sockets for active X11 display
     if not os.environ.get("DISPLAY"):

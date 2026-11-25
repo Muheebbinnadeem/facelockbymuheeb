@@ -3,6 +3,7 @@ Unified CLI and GUI launcher for FaceLock (`facelock-cli` & `facelock-gui`).
 """
 
 import argparse
+import getpass
 import json
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ from facelock.core.audit import read_recent_events
 from facelock.core.face_engine import FaceBiometricEngine, enumerate_cameras
 from facelock.core.fingerprint_engine import FingerprintEngine
 from facelock.core.folder_lock import FolderVaultManager
+from facelock.core.keyring_manager import enable_auto_unlock_keyring, get_keyring_status
 from facelock.core.pam_manager import PamManager
 from facelock.ui.prompt_window import launch_authentication_prompt
 
@@ -25,6 +27,7 @@ def cmd_status(user: str) -> int:
     vault_mgr = FolderVaultManager()
 
     fp_st = fp_eng.get_status(user)
+    kr_st = get_keyring_status(user)
     pam_st = pam_mgr.get_service_status()
     vaults = vault_mgr.list_vaults(owner=user)
 
@@ -35,10 +38,17 @@ def cmd_status(user: str) -> int:
         "cameras_detected": enumerate_cameras(),
         "fingerprint": {
             "fprintd_installed": fp_st.fprintd_installed,
+            "fprintd_driver_active": fp_st.fprintd_driver_active,
             "device_present": fp_st.device_present,
             "device_name": fp_st.device_name,
             "enrolled_fingers": fp_st.enrolled_fingers,
             "usb_sensors": fp_st.usb_sensors,
+        },
+        "keyring": {
+            "needs_fix": kr_st.needs_fix,
+            "gnome_keyring_encrypted": kr_st.gnome_keyring_encrypted,
+            "kwallet_may_prompt": kr_st.kwallet_may_prompt,
+            "summary": kr_st.summary,
         },
         "pam_services": {k: v["enabled"] for k, v in pam_st.items() if v["installed_on_system"]},
         "protected_folders": len(vaults),
@@ -115,18 +125,36 @@ def cmd_pam(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_keyring(args: argparse.Namespace, user: str) -> int:
+    if args.keyring_action == "status":
+        st = get_keyring_status(user)
+        print(json.dumps({
+            "needs_fix": st.needs_fix,
+            "gnome_keyring_encrypted": st.gnome_keyring_encrypted,
+            "kwallet_may_prompt": st.kwallet_may_prompt,
+            "summary": st.summary,
+        }, indent=2))
+        return 0
+    if args.keyring_action == "fix":
+        pw = getpass.getpass(f"Enter Kali password for '{user}' once (to disable startup keyring lock): ")
+        ok, msg = enable_auto_unlock_keyring(user, pw)
+        print(msg)
+        return 0 if ok else 1
+    return 1
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="facelock-cli",
-        description="FaceLock (Kali Hello) Biometric & PAM Security Suite",
+        description="FaceLock (Windows Hello for Kali Linux) Biometric & PAM Security Suite",
     )
     parser.add_argument("--user", default=None, help="Target username (auto-detected if omitted)")
     sub = parser.add_subparsers(dest="command")
 
-    p_gui = sub.add_parser("gui", help="Launch the FaceLock Frontend Control Center GUI")
+    p_gui = sub.add_parser("gui", help="Launch the FaceLock Sign-in Options GUI")
     p_gui.add_argument("--user", default=None, help="Target username")
 
-    p_status = sub.add_parser("status", help="Show biometric hardware, enrollment, and PAM hook status")
+    p_status = sub.add_parser("status", help="Show biometric hardware, enrollment, keyring, and PAM status")
     p_status.add_argument("--user", default=None, help="Target username")
 
     p_prompt = sub.add_parser("prompt", help="Launch the Windows Hello 3-method authentication prompt")
@@ -144,7 +172,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     p_pam = sub.add_parser("pam", help="Inspect, enable, or restore PAM service configurations")
     p_pam.add_argument("pam_action", choices=["status", "enable-defaults", "restore"])
 
-    sub.add_parser("download-models", help="Download OpenCV Zoo YuNet & SFace neural ONNX models")
+    p_kr = sub.add_parser("keyring", help="Inspect or disable startup login keyring password prompt")
+    p_kr.add_argument("--user", default=None, help="Target username")
+    p_kr.add_argument("keyring_action", choices=["status", "fix"])
+
     sub.add_parser("audit-log", help="Display recent authentication audit events")
 
     args = parser.parse_args(argv)
@@ -171,11 +202,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.command == "pam":
         return cmd_pam(args)
 
-    if args.command == "download-models":
-        eng = FaceBiometricEngine()
-        ok, msg = eng.download_onnx_models(progress_cb=lambda s, _: print(s))
-        print(msg)
-        return 0 if ok else 1
+    if args.command == "keyring":
+        return cmd_keyring(args, user)
 
     if args.command == "audit-log":
         for ev in read_recent_events(limit=40):

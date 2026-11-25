@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# FaceLock (Kali Hello) Automatic One-Command Installer & Launcher for Kali Linux
-# Author: Muheeb
+# FaceLock (Windows Hello for Kali Linux) Automatic 1-Command Installer
+# Made by Muheeb Bin Nadeem (https://muheebbinnadeem.cv)
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ echo "=================================================================="
 echo "  FaceLock by Muheeb — Windows Hello Biometric Suite for Kali"
 echo "=================================================================="
 
-# 1. Check & install missing apt packages if needed
+# 1. Check & install missing apt packages
 NEEDED_PKGS=()
 python3 -c "import gi" 2>/dev/null || NEEDED_PKGS+=("python3-gi" "python3-gi-cairo" "gir1.2-gtk-3.0")
 python3 -c "import cv2" 2>/dev/null || NEEDED_PKGS+=("python3-opencv")
@@ -29,10 +29,14 @@ command -v fprintd-enroll >/dev/null 2>&1 || NEEDED_PKGS+=("fprintd" "libpam-fpr
 if [[ ${#NEEDED_PKGS[@]} -gt 0 ]] && command -v apt-get >/dev/null 2>&1; then
     echo "[*] Installing required system dependencies: ${NEEDED_PKGS[*]}"
     apt-get update -qq || true
-    DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" policykit-1 || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -y "${NEEDED_PKGS[@]}" policykit-1 acl || true
 fi
 
-# 2. Sync latest codebase and bundled Neural ONNX models (YuNet + SFace) to /usr/lib/facelock
+# Start fprintd if installed
+systemctl unmask fprintd.service 2>/dev/null || true
+systemctl start fprintd.service 2>/dev/null || true
+
+# 2. Sync latest codebase & bundled Neural ONNX models to /usr/lib/facelock
 INSTALL_LIB="/usr/lib/facelock"
 rm -rf "$INSTALL_LIB/src" "$INSTALL_LIB/config" "$INSTALL_LIB/scripts" "$INSTALL_LIB/models"
 mkdir -p "$INSTALL_LIB" /var/lib/facelock/models
@@ -91,32 +95,42 @@ chown -R root:root "$INSTALL_LIB"
 chmod 0755 "$INSTALL_LIB/facelock-pam-helper" "$INSTALL_LIB/facelock-privileged"
 chmod 0755 "/usr/local/bin/facelock-cli" "/usr/local/bin/facelock-gui"
 
-# 4. Initialize directories & permissions so the desktop user can enroll faces & lock folders seamlessly
+# 4. Initialize directories with strict per-user ACL permissions (no 0777 world-writable exposure)
 mkdir -p /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock /var/backups/facelock
 chmod 0755 /etc/facelock /var/lib/facelock
-chmod 0777 /etc/facelock/encodings /var/lib/facelock/vaults /var/lib/facelock/state /var/log/facelock
+chmod 0700 /etc/facelock/encodings /var/lib/facelock/vaults
+chmod 1777 /var/lib/facelock/state /var/log/facelock
 rm -f /etc/facelock/encodings/*.tmp
-
-# Remove any legacy non-neural face encodings so user gets 100% Neural SFace accuracy
-for enc_f in /etc/facelock/encodings/*.enc "/home/${TARGET_USER:-}/.local/share/facelock/encodings/"*.enc; do
-    if [[ -f "$enc_f" ]] && grep -q "spatial-lbp-hog-dct" "$enc_f" 2>/dev/null; then
-        echo "[*] Removing legacy non-neural profile ($enc_f) for SFace Neural upgrade..."
-        rm -f "$enc_f"
-    fi
-done
-if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
-    chown -R "$TARGET_USER:$TARGET_USER" /etc/facelock/encodings 2>/dev/null || true
-fi
 
 if [[ ! -f /etc/facelock/config.json ]]; then
     cp "$REPO_DIR/config/default_config.json" /etc/facelock/config.json
 fi
-chmod 0666 /etc/facelock/config.json
+chmod 0644 /etc/facelock/config.json
 
 PYTHONPATH="$INSTALL_LIB/src" /usr/bin/python3 -c "from facelock.core.crypto import ensure_master_key; ensure_master_key()"
-chmod 0644 /etc/facelock/master.key
+chmod 0600 /etc/facelock/master.key
 
-# 5. Install Polkit policy, Desktop shortcut & Thunar Right-Click integration
+# Remove legacy non-neural profiles so user gets Neural SFace accuracy
+for enc_f in /etc/facelock/encodings/*.enc "/home/${TARGET_USER:-}/.local/share/facelock/encodings/"*.enc; do
+    if [[ -f "$enc_f" ]] && grep -q "spatial-lbp-hog-dct" "$enc_f" 2>/dev/null; then
+        rm -f "$enc_f"
+    fi
+done
+
+# Grant scoped ACL permissions exclusively to TARGET_USER (keeps other local users locked out)
+if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
+    usermod -aG video "$TARGET_USER" 2>/dev/null || true
+    if command -v setfacl >/dev/null 2>&1; then
+        setfacl -m "u:${TARGET_USER}:r--" /etc/facelock/master.key 2>/dev/null || true
+        setfacl -m "u:${TARGET_USER}:rw-" /etc/facelock/config.json 2>/dev/null || true
+        setfacl -m "u:${TARGET_USER}:rwx" /etc/facelock/encodings /var/lib/facelock/vaults 2>/dev/null || true
+    fi
+    bash "$REPO_DIR/scripts/thunar-integration.sh" || true
+    # Disable KWallet nag & initialize passwordless login keyring if none exists yet
+    PYTHONPATH="$INSTALL_LIB/src" /usr/bin/python3 -c "from facelock.core.keyring_manager import initialize_fresh_keyring_if_missing; initialize_fresh_keyring_if_missing('$TARGET_USER')" || true
+fi
+
+# 5. Install Polkit policy & Desktop shortcut
 if [[ -d /usr/share/polkit-1/actions ]]; then
     cp "$REPO_DIR/config/com.muheeb.facelock.policy" /usr/share/polkit-1/actions/com.muheeb.facelock.policy
     chmod 0644 /usr/share/polkit-1/actions/com.muheeb.facelock.policy
@@ -127,28 +141,17 @@ if [[ -d /usr/share/applications ]]; then
     chmod 0644 /usr/share/applications/facelock-control.desktop
 fi
 
-if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
-    usermod -aG video,input,plugdev "$TARGET_USER" 2>/dev/null || true
-    chmod a+r /dev/input/event* 2>/dev/null || true
-    cat > /etc/udev/rules.d/99-facelock-biometric.rules << 'EOF'
-KERNEL=="event*", SUBSYSTEM=="input", MODE="0664", GROUP="input"
-SUBSYSTEM=="hidraw", MODE="0664", GROUP="plugdev"
-EOF
-    udevadm control --reload-rules 2>/dev/null || true
-    bash "$REPO_DIR/scripts/thunar-integration.sh" || true
-fi
-
-# 6. Auto-enable PAM hooks (sudo, LightDM, Polkit, Lock Screen) with backup
+# 6. Auto-enable PAM hooks (sudo, LightDM, Lock Screen, Polkit) with automatic backup
 echo "[*] Auto-configuring PAM hooks (sudo, Login, Lock Screen, Polkit)..."
 /usr/local/bin/facelock-cli pam enable-defaults || true
 
 echo ""
-echo "[+] Everything is installed and configured automatically!"
+echo "[+] Installation Complete! Made by Muheeb (https://muheebbinnadeem.cv)"
 echo "=================================================================="
 
-# 7. Automatically open the Kali Hello GUI window for the user right away!
+# 7. Auto-open Windows Hello Sign-in Options GUI immediately
 if [[ -n "${DISPLAY:-}" ]] && [[ "${FACELOCK_NO_AUTO_GUI:-0}" != "1" ]]; then
-    echo "[*] Opening Kali Hello Sign-in Options window..."
+    echo "[*] Opening Windows Hello Sign-in Options window..."
     if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
         TargetUID="$(id -u "$TARGET_USER")"
         sudo -u "$TARGET_USER" \

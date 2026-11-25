@@ -131,6 +131,12 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
         }
 
         copy_env_if_present(pamh, "DISPLAY");
+        if (!getenv("DISPLAY")) {
+            const char *xdisp = NULL;
+            if (pam_get_item(pamh, PAM_XDISPLAY, (const void **)&xdisp) == PAM_SUCCESS && xdisp && xdisp[0] != '\0') {
+                setenv("DISPLAY", xdisp, 1);
+            }
+        }
         copy_env_if_present(pamh, "WAYLAND_DISPLAY");
         copy_env_if_present(pamh, "XAUTHORITY");
         copy_env_if_present(pamh, "XDG_RUNTIME_DIR");

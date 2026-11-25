@@ -143,8 +143,8 @@ class WindowsHelloPromptWindow:
         Gtk = self.Gtk
         Gdk = self.Gdk
 
-        self.win = Gtk.Window(title="Kali Hello Security")
-        self.win.set_default_size(440, 560)
+        self.win = Gtk.Window(title="Windows Hello — Kali Security")
+        self.win.set_default_size(420, 540)
         self.win.set_resizable(False)
         self.win.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
         self.win.set_keep_above(True)
@@ -152,7 +152,7 @@ class WindowsHelloPromptWindow:
         self.win.connect("destroy", self._on_destroy)
         self.win.connect("key-press-event", self._on_key_press)
 
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=11)
         outer.set_margin_top(16)
         outer.set_margin_bottom(16)
         outer.set_margin_start(18)
@@ -163,7 +163,7 @@ class WindowsHelloPromptWindow:
         # Top badge & service title
         badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         badge_box.set_halign(Gtk.Align.CENTER)
-        badge = Gtk.Label(label="KALI HELLO  •  WINDOWS HELLO FOR LINUX")
+        badge = Gtk.Label(label="WINDOWS HELLO  •  KALI SECURITY")
         badge.get_style_context().add_class("header-badge")
         badge_box.pack_start(badge, False, False, 0)
         outer.pack_start(badge_box, False, False, 0)
@@ -171,7 +171,7 @@ class WindowsHelloPromptWindow:
         srv_title = self.title_override or SERVICE_LABELS.get(
             self.service, f"Authentication Required ({self.service})"
         )
-        title_lbl = Gtk.Label(label="Verify Your Identity")
+        title_lbl = Gtk.Label(label="Making sure it's you")
         title_lbl.get_style_context().add_class("title-label")
         outer.pack_start(title_lbl, False, False, 0)
 
@@ -185,7 +185,7 @@ class WindowsHelloPromptWindow:
         user_box.set_halign(Gtk.Align.CENTER)
         user_box.get_style_context().add_class("user-pill")
         user_icon = Gtk.Image.new_from_icon_name("avatar-default-symbolic", Gtk.IconSize.BUTTON)
-        user_lbl = Gtk.Label(label=f"Account: {self.username} (Auto-Detected)")
+        user_lbl = Gtk.Label(label=f"{self.username}")
         user_box.pack_start(user_icon, False, False, 0)
         user_box.pack_start(user_lbl, False, False, 0)
         outer.pack_start(user_box, False, False, 2)
@@ -213,18 +213,11 @@ class WindowsHelloPromptWindow:
 
         # --- View 2: Fingerprint ---
         fp_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self.fp_event_box = Gtk.EventBox()
-        self.fp_event_box.set_halign(Gtk.Align.CENTER)
         self.fp_area = Gtk.DrawingArea()
         self.fp_area.set_size_request(210, 210)
         self.fp_area.set_halign(Gtk.Align.CENTER)
         self.fp_area.connect("draw", self._on_draw_fingerprint)
-        self.fp_event_box.add(self.fp_area)
-        self.fp_event_box.connect(
-            "button-press-event",
-            lambda *_: self.fp_engine.notify_ui_sensor_touch(),
-        )
-        fp_page.pack_start(self.fp_event_box, False, False, 0)
+        fp_page.pack_start(self.fp_area, False, False, 0)
 
         self.fp_retry_btn = Gtk.Button(label="Retry Fingerprint Scan")
         self.fp_retry_btn.get_style_context().add_class("secondary-btn")
@@ -322,6 +315,7 @@ class WindowsHelloPromptWindow:
         outer.pack_start(bottom_row, False, False, 2)
 
         self.win.show_all()
+        self.win.present()
         self.switch_method(self.active_method)
 
     def _create_method_button(self, icon_name: str, text: str, method_id: str) -> Any:
